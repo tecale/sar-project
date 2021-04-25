@@ -1,3 +1,7 @@
+#Corpora and bin files
+201*
+*.bin
+
 #Visual Studio code
 .vscode
 
