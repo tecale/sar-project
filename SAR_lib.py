@@ -51,6 +51,9 @@ class SAR_Project:
         self.use_stemming = False # valor por defecto, se cambia con self.set_stemming()
         self.use_ranking = False  # valor por defecto, se cambia con self.set_ranking()
 
+        self.total_doc = 0 # contador de número de documentos, usado para asignar docid
+        self.total_news = 0 # contador de número de noticias, usado para asignar newid
+
 
     ###############################
     ###                         ###
@@ -281,6 +284,35 @@ class SAR_Project:
 
         if query is None or len(query) == 0:
             return []
+        else:
+
+            query_tokens = self.tokenize(query)
+            i = 0
+            while i < len(query_tokens):
+                if query_tokens[i] == 'not':
+                    p = self.reverse_posting(self.get_posting(query_tokens[i+1]))
+                    i += 2
+                else if query_tokens[i] == 'and':
+                    if query_tokens[i+1] == 'not':
+                        p2 = self.reverse_posting(self.get_posting(query_tokens[i+2]))
+                        i += 3
+                    else:
+                        p2 = self.get_posting(query_tokens[i+1])
+                        i += 2
+                    p = self.and_posting(p, p2)
+                else if query_tokens[i] == 'or':
+                    if query_tokens[i+1] == 'not':
+                        p2 = self.reverse_posting(self.get_posting(query_tokens[i+2]))
+                        i += 3
+                    else:
+                        p2 = self.get_posting(query_tokens[i+1])
+                        i += 2
+                    p = self.or_posting(p, p2)
+                else:
+                    p = self.get_posting(query_tokens[i])
+                    i += 1
+            return p
+
 
         ########################################
         ## COMPLETAR PARA TODAS LAS VERSIONES ##
@@ -306,7 +338,10 @@ class SAR_Project:
         return: posting list
 
         """
-        pass
+        if self.positional:
+            return [x[0] for x in self.index[field][term[1]]]
+        else:
+            return self.index[field][term][1]
         ########################################
         ## COMPLETAR PARA TODAS LAS VERSIONES ##
         ########################################
@@ -386,7 +421,16 @@ class SAR_Project:
 
         """
         
-        pass
+        i = 0
+        result = []
+        for docid in p:
+            for j in range(i,docid):
+                result.append(j)
+            i = docid + 1
+        while i < self.total_news:
+            result.append(i)
+            i+=1
+                    
         ########################################
         ## COMPLETAR PARA TODAS LAS VERSIONES ##
         ########################################
@@ -405,11 +449,20 @@ class SAR_Project:
         return: posting list con los newid incluidos en p1 y p2
 
         """
-        
-        pass
-        ########################################
-        ## COMPLETAR PARA TODAS LAS VERSIONES ##
-        ########################################
+        result = []
+        i,j = 0
+        while i < len(p1) and j < len(p2):
+            if p1[i] == p2[j]:
+                result.append(p1[i])
+                i += 1
+                j += 2
+            else:
+                if p1[i] < p2[j]:
+                    i += 1
+                else:
+                    j += 1
+
+        return result
 
 
 
@@ -425,12 +478,26 @@ class SAR_Project:
         return: posting list con los newid incluidos de p1 o p2
 
         """
+        result = []
+        i,j = 0
+        while i < len(p1) and j < len(p2):
+            if p[i] == p2[j]:
+                result.append(p1[i])
+                i += 1
+                j += 1
+            else:
+                if p1[i] < p2[j]:
+                    result.apppend(p1[i])
+                    i += 1
+                else:
+                    result.append(p2[j])
+                    j+=1
+        while i < len(p1):
+            result.append(p1[i])
+        while j < len(p2):
+            result.append(p2[j])
+        return result
 
-        
-        pass
-        ########################################
-        ## COMPLETAR PARA TODAS LAS VERSIONES ##
-        ########################################
 
 
     def minus_posting(self, p1, p2):
