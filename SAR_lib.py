@@ -288,11 +288,12 @@ class SAR_Project:
 
             query_tokens = self.tokenize(query)
             i = 0
+            p = []
             while i < len(query_tokens):
                 if query_tokens[i] == 'not':
                     p = self.reverse_posting(self.get_posting(query_tokens[i+1]))
                     i += 2
-                else if query_tokens[i] == 'and':
+                elif query_tokens[i] == 'and':
                     if query_tokens[i+1] == 'not':
                         p2 = self.reverse_posting(self.get_posting(query_tokens[i+2]))
                         i += 3
@@ -300,7 +301,7 @@ class SAR_Project:
                         p2 = self.get_posting(query_tokens[i+1])
                         i += 2
                     p = self.and_posting(p, p2)
-                else if query_tokens[i] == 'or':
+                elif query_tokens[i] == 'or':
                     if query_tokens[i+1] == 'not':
                         p2 = self.reverse_posting(self.get_posting(query_tokens[i+2]))
                         i += 3
@@ -430,6 +431,7 @@ class SAR_Project:
         while i < self.total_news:
             result.append(i)
             i+=1
+        return result
                     
         ########################################
         ## COMPLETAR PARA TODAS LAS VERSIONES ##
@@ -450,7 +452,8 @@ class SAR_Project:
 
         """
         result = []
-        i,j = 0
+        i = 0
+        j = 0
         while i < len(p1) and j < len(p2):
             if p1[i] == p2[j]:
                 result.append(p1[i])
@@ -479,23 +482,26 @@ class SAR_Project:
 
         """
         result = []
-        i,j = 0
+        i = 0
+        j = 0
         while i < len(p1) and j < len(p2):
-            if p[i] == p2[j]:
+            if p1[i] == p2[j]:
                 result.append(p1[i])
                 i += 1
                 j += 1
             else:
                 if p1[i] < p2[j]:
-                    result.apppend(p1[i])
+                    result.append(p1[i])
                     i += 1
                 else:
                     result.append(p2[j])
                     j+=1
         while i < len(p1):
             result.append(p1[i])
+            i+=1
         while j < len(p2):
             result.append(p2[j])
+            j+=1
         return result
 
 
