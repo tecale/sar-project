@@ -425,12 +425,14 @@ class SAR_Project:
         i = 0
         result = []
         for docid in p:
-            for j in range(i,docid):
-                result.append(j)
+            # for j in range(i,docid):
+            #     result.append(j)
+            result += range(i,docid)
             i = docid + 1
-        while i < self.total_news:
-            result.append(i)
-            i+=1
+        # while i < self.total_news:
+        #     result.append(i)
+        #     i+=1
+        result += range(i,self.total_news)
         return result
                     
         ########################################
@@ -458,7 +460,7 @@ class SAR_Project:
             if p1[i] == p2[j]:
                 result.append(p1[i])
                 i += 1
-                j += 2
+                j += 1
             else:
                 if p1[i] < p2[j]:
                     i += 1
