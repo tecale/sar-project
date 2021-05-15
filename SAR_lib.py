@@ -286,42 +286,107 @@ class SAR_Project:
 
         if query is None or len(query) == 0:
             return []
+        
+        query = query.lower()
+        i = 0
+        p = []
+        while i < len(query) and query[i].isspace():
+            i += 1
+
+        if query[i] == '(':
+            matching_pos = self.get_matching_parenthesis(query, i)
+            p = self.solve_query(query[i+1: matching_pos])
+            i = matching_pos + 1
+        elif query[i:i+4] == 'not ' or query[i:i+4] == 'not(':
+            (p,i) = self.solve_reversed_query(query, i)
         else:
+            token_end = self.get_token_end(query, i)
+            p = self.get_posting(query[i:token_end])
+            i = token_end
 
-            query_tokens = self.tokenize(query)
-            i = 0
-            p = []
-            while i < len(query_tokens):
-                if query_tokens[i] == 'not':
-                    p = self.reverse_posting(self.get_posting(query_tokens[i+1]))
-                    i += 2
-                elif query_tokens[i] == 'and':
-                    if query_tokens[i+1] == 'not':
-                        p2 = self.reverse_posting(self.get_posting(query_tokens[i+2]))
-                        i += 3
-                    else:
-                        p2 = self.get_posting(query_tokens[i+1])
-                        i += 2
-                    p = self.and_posting(p, p2)
-                elif query_tokens[i] == 'or':
-                    if query_tokens[i+1] == 'not':
-                        p2 = self.reverse_posting(self.get_posting(query_tokens[i+2]))
-                        i += 3
-                    else:
-                        p2 = self.get_posting(query_tokens[i+1])
-                        i += 2
-                    p = self.or_posting(p, p2)
+        while i < len(query):
+            if query[i].isspace():
+                i += 1
+                continue
+            if query[i:i+2] == 'or':
+                operation = self.or_posting
+                i += 2
+            elif query[i:i+3] == 'and':
+                operation = self.and_posting
+                i += 3
+            else:
+                break
+            
+            while i < len(query) and query[i].isspace():
+                i += 1
+
+            if query[i] == '(':
+                matching_pos = self.get_matching_parenthesis(query, i)
+                p2 = self.solve_query(query[i+1: matching_pos])
+                i = matching_pos + 1
+            elif query[i:i+4] == 'not ' or query[i:i+4] == 'not(':
+                (p2,i) = self.solve_reversed_query(query, i)
+            else:
+                token_end = self.get_token_end(query, i)
+                p2 = self.get_posting(query[i:token_end])
+                i = token_end
+            
+            p = operation(p, p2)
+        
+        return p
+        
+
+
+
+    def get_token_end(self, query, start):
+        pos = start
+        while pos < len(query) and not (query[pos] == ' ' or query[pos] == '(' or query[pos] == ')'):
+            pos += 1
+        return pos
+
+
+    def get_matching_parenthesis(self, query, start):
+        """
+        A partir de una query y la posición de un paréntisis inicial, devuelve la posición del
+        paréntesis que lo cierra. Se asume que la query está construida correctamente
+
+        param:  "query": query de la que se quiere extraer la posición del paréntesis de cierre
+                "start": posición del paréntisis de abertura
+
+        return: posición del paréntesis de cierre
+        """
+        pos  = start + 1
+        inner_parenthesis = 0
+        while pos < len(query):
+            if query[pos] == ')':
+                if inner_parenthesis == 0:
+                    return pos
                 else:
-                    p = self.get_posting(query_tokens[i])
-                    i += 1
-            return p
+                    inner_parenthesis -= 1
+            elif query[pos] == '(':
+                inner_parenthesis += 1
+            pos += 1
 
 
-        ########################################
-        ## COMPLETAR PARA TODAS LAS VERSIONES ##
-        ########################################
-
- 
+    def solve_reversed_query(self, query, start):
+        pos = start + 3
+        while pos < len(query):
+            if query[pos].isspace():
+                pos += 1
+                continue
+            elif query [pos] == '(':
+                matching_pos = self.get_matching_parenthesis(query, pos)
+                posting_list = self.solve_query(query[pos+1:matching_pos])
+                return (self.reverse_posting(posting_list), matching_pos + 1)
+            elif query[pos: pos+4] == 'not ' or query[pos:pos+4] == 'not(':
+                (posting_list, pos) = self.solve_reversed_query(query, pos)
+                return (self.reverse_posting(posting_list), pos)
+            else:
+                token_start = pos
+                token_end = self.get_token_end(query, token_start)
+                posting_list = self.get_posting(query[token_start:token_end])
+                return (self.reverse_posting(posting_list), token_end)
+        return []
 
 
     def get_posting(self, term, field='article'):

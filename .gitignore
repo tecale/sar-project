@@ -136,3 +136,4 @@ dmypy.json
 .pyre/
 queries_minimo.txt
 result_2015_minimo.txt
+result_2015_full.txt
