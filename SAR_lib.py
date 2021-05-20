@@ -23,7 +23,6 @@ class SAR_Project:
               ("summary", True)]
     fields_names = {x[0] for x in fields}
     normalized_fields = {x[0] for x in fields if x[1]}
-
     # numero maximo de documento a mostrar cuando self.show_all es False
     SHOW_MAX = 10
 

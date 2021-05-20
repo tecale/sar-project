@@ -134,3 +134,5 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+queries_minimo.txt
+result_2015_minimo.txt
