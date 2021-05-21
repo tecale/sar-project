@@ -36,10 +36,13 @@ class SAR_Project:
         Puedes añadir más variables si las necesitas
 
         """
-        self.index = {k[0]: {} for k in SAR_Project.fields}  # hash para el indice invertido de terminos --> clave: termino, valor: posting list.
+        self.index = {k[0]: {} for k in
+                      SAR_Project.fields}  # hash para el indice invertido de terminos --> clave: termino, valor: posting list.
         # Si se hace la implementacion multifield, se pude hacer un segundo nivel de hashing de tal forma que:
         # self.index['title'] seria el indice invertido del campo 'title'.
-        self.sindex = {}  # hash para el indice invertido de stems --> clave: stem, valor: lista con los terminos que tienen ese stem
+        self.sindex = {k[0]: {} for k in
+                      SAR_Project.fields}  # hash para el indice invertido de stems --> clave: stem,
+        # valor: ([lista con los terminos que tienen ese stem],[lista apariciones])
         self.ptindex = {}  # hash para el indice permuterm.
         self.docs = {}  # diccionario de documentos --> clave: entero(docid),  valor: ruta del fichero.
         self.weight = {}  # hash de terminos para el pesado, ranking de resultados. puede no utilizarse
@@ -53,7 +56,6 @@ class SAR_Project:
 
         self.total_doc = 0  # contador de número de documentos, usado para asignar docid
         self.total_news = 0  # contador de número de noticias, usado para asignar newid
-
 
     ###############################
     ###                         ###
@@ -139,13 +141,16 @@ class SAR_Project:
         self.stemming = args['stem']
         self.permuterm = args['permuterm']
 
-
         for dir, subdirs, files in os.walk(root):
             for filename in files:
                 if filename.endswith('.json'):
                     fullname = os.path.join(dir, filename)
                     self.index_file(fullname)
 
+        if self.stemming:
+            #si stemming=true creamios indice de stems a partir del indice ya creado
+            self.set_stemming(True)
+            self.make_stemming()
                     ##########################################
                     ## COMPLETAR PARA FUNCIONALIDADES EXTRA ##
                     ##########################################
@@ -178,25 +183,25 @@ class SAR_Project:
             #
             #
             #
-            
+
         position = 0
         for news in jlist:
             for field in self.fields:
                 if not self.multifield and field[0] != 'article':
                     # Si no estamos procesando para múltiples campos y el campo actual no es artículo, pasamos al siguiente campo
                     continue
-                if field[1]: #tokenize
+                if field[1]:  # tokenize
                     tokens = self.tokenize(news[field[0]])
                     for i in range(len(tokens)):
                         # Para cada token de cada campo, lo intoroducimos en el índice
                         token = tokens[i]
                         if token not in self.index[field[0]]:
                             # Si no hemos visto el token antes, creamos una entrada nueva en el índice, con número de aparaciones a 0 y lista de noticias en las que aparece vacía
-                            self.index[field[0]][token] = (0,[])
+                            self.index[field[0]][token] = (0, [])
                         index_entry = self.index[field[0]][token]
                         posting_list = index_entry[1]
                         if self.positional:
-                            #Si estamos construyendo el índice posicioanl
+                            # Si estamos construyendo el índice posicioanl
                             if len(posting_list) > 0 and posting_list[-1][0] == self.total_news:
                                 # Si ya habíamos nos habíamos encotrado con este token en esta noticia, solamente añadimos la posición
                                 # a la lista de posiciones para el token en esa noticia. Comprobamos solo la última posición de la lista
@@ -204,43 +209,42 @@ class SAR_Project:
                                 # que estuviese en la última posición, no es posible que hayamos tratado otra distinta de por medio
                                 posting_list[-1][1].append(i)
                             else:
-                                #Si el token no había aparecido antes en la noticia, creamos una nueva entrada con el id de la noticia
+                                # Si el token no había aparecido antes en la noticia, creamos una nueva entrada con el id de la noticia
                                 # y la lista de apariciones con la posición del token
                                 posting_list.append((self.total_news, [i]))
                         else:
                             # Si no estamos construyendo el índice posicional
                             if len(posting_list) == 0 or posting_list[-1] != self.total_news:
-                                # Si no nos habíamos encotrado antes el token en la noticia, añadimos el id de la noticia a lista de 
+                                # Si no nos habíamos encotrado antes el token en la noticia, añadimos el id de la noticia a lista de
                                 # de documentos para ese token
                                 posting_list.append(self.total_news)
-                        #Actualizamos la entrada en el índice para el token, incrementando el número total de apariciones y con la lista de documentos actaulizada
+                        # Actualizamos la entrada en el índice para el token, incrementando el número total de apariciones y con la lista de documentos actaulizada
                         self.index[field[0]][token] = (index_entry[0] + 1, posting_list)
-                else: #not tokenize
+                else:  # not tokenize
                     token = news[field[0]]
                     if token not in self.index[field[0]]:
                         # Si no hemos visto el token antes, creamos una entrada nueva en el índice, con número de aparaciones a 0 y lista de noticias en las que aparece vacía
-                        self.index[field[0]][token] = (0,[])
+                        self.index[field[0]][token] = (0, [])
                     index_entry = self.index[field[0]][token]
                     posting_list = index_entry[1]
                     if self.positional:
-                        # Si es posicional, añadimos a la lista de aparciones el id de la noticia. Como solo hay un token de este campo por 
+                        # Si es posicional, añadimos a la lista de aparciones el id de la noticia. Como solo hay un token de este campo por
                         # noticia, no es posible que el id de noticia ya esté en la lista, así que no hay que comprobarlo. Y como todo el
                         # texto va a ser el token, la posición siempre será 0
-                        posting_list.append((self.total_news,[0]))
+                        posting_list.append((self.total_news, [0]))
                     else:
                         # Si no es posicional, añadimos a la lista de apariciones el id de la noticia. Como solo hay un token de este campo
                         # por noticia, no es posible que el id de noticia ya esté en la lista, así que no hay que comprobarlo.
                         posting_list.append(self.total_news)
-                    #Actualizamos la entrada en el índice para el token, incrementando el número total de apariciones y con la lista de documentos actaulizada
+                    # Actualizamos la entrada en el índice para el token, incrementando el número total de apariciones y con la lista de documentos actaulizada
                     self.index[field[0]][token] = (index_entry[0] + 1, posting_list)
-            #Registramos la noticia con el documento en el que está y su posición dentro de él
+            # Registramos la noticia con el documento en el que está y su posición dentro de él
             self.news[self.total_news] = (self.total_doc, position)
             self.total_news += 1
-            position +=1
+            position += 1
         # Registramos el documento con su ruta
         self.docs[self.total_doc] = filename
         self.total_doc += 1
-
 
     def tokenize(self, text):
         """
@@ -265,11 +269,33 @@ class SAR_Project:
         self.stemmer.stem(token) devuelve el stem del token
 
         """
+        # clave: stem,
+        # valor: ([lista con los terminos que tienen ese stem],[lista apariciones])
+        for field in self.fields_names:
+            for token in self.index[field].keys():
+                stem = self.stemmer.stem(token)
+                if stem not in self.sindex[field]:
+                    #para cada token de cada campo del indice de terminos, si no esta en el indice de stems
+                    if self.positional:
+                        self.sindex[field][stem] = ([token],[y[0] for y in self.index[field][token][1]])
+                        #si el indice es posicional extraemos solo noticias sin posiciones stem:([token], [newId1, newId2, ...])
+                    else:
+                        self.sindex[field][stem] =([token],self.index[field][token][1])
+                        #si no es posicional copiamos directamente las apariciones
+                else:
+                    #si ya esta en el indice de stems
+                    if self.positional:
+                        self.sindex[field][stem] = (self.sindex[field][stem][0] + [token],
+                                                    self.or_posting(self.sindex[field][stem][1],
+                                                                    [y[0] for y in self.index[field][token][1]]))
+                        #y el indice de terminos es posicional extraemos newIds y las unimos a la lista del stem
+                    else:
+                        self.sindex[field][stem] = (self.sindex[field][stem][0] + [token],
+                                                    self.or_posting(self.sindex[field][stem][1], self.index[field][token][1]))
+                        #si no es posicional unimos directamente
 
-        pass
-        ####################################################
-        ## COMPLETAR PARA FUNCIONALIDAD EXTRA DE STEMMING ##
-        ####################################################
+
+
 
     def make_permuterm(self):
         """
@@ -291,16 +317,25 @@ class SAR_Project:
 
         """
         print("========================================")
-        print("Number of indexed days: " +  str(len(self.index['date'])))
+        print("Number of indexed days: " + str(len(self.index['date'])))
         print("----------------------------------------")
-        print("Number of indexed news: " +  str(len(self.news)))
+        print("Number of indexed news: " + str(len(self.news)))
         print("----------------------------------------")
         print("TOKENS:")
         if self.multifield:
             for field in self.fields:
-                print("\t# of tokens in \'"+ field[0] +"\': " + str(len(self.index[field[0]])))
+                print("\t# of tokens in \'" + field[0] + "\': " + str(len(self.index[field[0]])))
+            if self.use_stemming:
+                print("----------------------------------------")
+                print("STEMS:")
+                for field in self.fields:
+                    print("\t# of stems in \'" + field[0] + "\': " + str(len(self.sindex[field[0]])))
         else:
             print("\t# of tokens in \'article\': " + str(len(self.index['article'])))
+            if self.use_stemming:
+                print("----------------------------------------")
+                print("STEMS:")
+                print("\t# of stems in \'article\': " + str(len(self.sindex['article'])))
         print("----------------------------------------")
         if self.positional:
             print("Positional queries are allowed.")
@@ -333,11 +368,11 @@ class SAR_Project:
 
         if query is None or len(query) == 0:
             return []
-        
+
         query = query.lower()
         i = 0
         p = []
-        #Limpiamos el posible espacio blanco al principio
+        # Limpiamos el posible espacio blanco al principio
         while i < len(query) and query[i].isspace():
             i += 1
 
@@ -347,19 +382,19 @@ class SAR_Project:
             # Si es una subconsulta, búscamos el paréntesis de cierre
             matching_pos = self.get_matching_parenthesis(query, i)
             # Obtenemos la posting list de la subconsulta
-            p = self.solve_query(query[i+1: matching_pos])
+            p = self.solve_query(query[i + 1: matching_pos])
             # Avanzamos el índice hasta después de la consulta
             i = matching_pos + 1
-        elif query[i:i+4] == 'not ' or query[i:i+4] == 'not(':
+        elif query[i:i + 4] == 'not ' or query[i:i + 4] == 'not(':
             # Si es un término negado, lo delegamos a la método para calcular posting lists
             # de negaciones
-            (p,i) = self.solve_reversed_query(query, i)
+            (p, i) = self.solve_reversed_query(query, i)
         else:
             # Si es un token normal, buscamos hasta dónde llega
             token_end = self.get_token_end(query, i)
             # Calculamos la posting list del término
             p = self.get_posting(query[i:token_end])
-            #Avanzamos el índice hasta después del token
+            # Avanzamos el índice hasta después del token
             i = token_end
 
         # Mientras la consulta continue, la seguimos procesando de izquierda a derecha
@@ -368,15 +403,15 @@ class SAR_Project:
                 i += 1
                 continue
             # Obtenemos el tipo de operación, y salimos si no se corresponde con el formato
-            if query[i:i+2] == 'or':
+            if query[i:i + 2] == 'or':
                 operation = self.or_posting
                 i += 2
-            elif query[i:i+3] == 'and':
+            elif query[i:i + 3] == 'and':
                 operation = self.and_posting
                 i += 3
             else:
                 break
-            
+
             while i < len(query) and query[i].isspace():
                 i += 1
 
@@ -384,41 +419,38 @@ class SAR_Project:
             # negado, o un término normal, y se tratarán de la misma manera
             if query[i] == '(':
                 matching_pos = self.get_matching_parenthesis(query, i)
-                p2 = self.solve_query(query[i+1: matching_pos])
+                p2 = self.solve_query(query[i + 1: matching_pos])
                 i = matching_pos + 1
-            elif query[i:i+4] == 'not ' or query[i:i+4] == 'not(':
-                (p2,i) = self.solve_reversed_query(query, i)
+            elif query[i:i + 4] == 'not ' or query[i:i + 4] == 'not(':
+                (p2, i) = self.solve_reversed_query(query, i)
             else:
                 token_end = self.get_token_end(query, i)
                 p2 = self.get_posting(query[i:token_end])
                 i = token_end
-            
+
             # Calculamos el resultado de la operación, y continuamos si es necesario
             p = operation(p, p2)
-        
+
         return p
-        
-
-
 
     def get_token_end(self, query, start):
         """
         A partir de una query y la posición en la que comienza un token que se corresponde con el operando para
         una operación AND, OR o NOT, devuelve la posición del siguiente carácter después del token sobre el que
-        se opera. El token puede ser o bien una cadena entre comillas para búsqueda, o bien una palabra suelta, 
-        que puede incluir un especificador de campo. También podría ser una subconsulta entre paréntesis. No 
+        se opera. El token puede ser o bien una cadena entre comillas para búsqueda, o bien una palabra suelta,
+        que puede incluir un especificador de campo. También podría ser una subconsulta entre paréntesis. No
         se considera la opción de que sea una consulta negada, ese caso se trata externamente
 
         param:  "query" Cadena con la query
                 "start" Posición del primer carácter del token
         return: posición del siguiente carácter posterior al token
-        """ 
+        """
         pos = start
         while pos < len(query) and not (query[pos] == ' ' or query[pos] == ')'):
-            # Generalmente, sabremos que hemos llegado al final del token si hemos alcanzado el final del input, 
+            # Generalmente, sabremos que hemos llegado al final del token si hemos alcanzado el final del input,
             # si nos encotramos un espacio en blanco, o un paréntesis que cierre
             if query[pos] == '"':
-                #Si encontramos comillas, token acabará únicamente cuando nos encontremos las comillas de cierre
+                # Si encontramos comillas, token acabará únicamente cuando nos encontremos las comillas de cierre
                 pos += 1
                 while pos < len(query) and query[pos] != '"':
                     pos += 1
@@ -427,7 +459,6 @@ class SAR_Project:
                     exit()
             pos += 1
         return pos
-
 
     def get_matching_parenthesis(self, query, start):
         """
@@ -439,7 +470,7 @@ class SAR_Project:
 
         return: posición del paréntesis de cierre
         """
-        pos  = start + 1
+        pos = start + 1
         inner_parenthesis = 0
         while pos < len(query):
             if query[pos] == ')':
@@ -455,16 +486,15 @@ class SAR_Project:
                 inner_parenthesis += 1
             pos += 1
 
-
     def solve_reversed_query(self, query, start):
         """
-        Resuelve las queries del tipo NOT, devolviendo la posting list y la posición donde termina la query. Tiene 
-        en cuenta los casos de que el operando sea a su vez una query NOT, como que sea una subconsulta entre 
+        Resuelve las queries del tipo NOT, devolviendo la posting list y la posición donde termina la query. Tiene
+        en cuenta los casos de que el operando sea a su vez una query NOT, como que sea una subconsulta entre
         paréntesis, como que sea un término normal
 
         param:  "query": query de la que se quiere extrar la query NOT
                 "start": posición donde comienza la query NOT
-        
+
         return: (end, posting_list) La posición donde acaba la query NOT, y la posting list resultante de la query
         """
         # Pasamos el NOT inicial
@@ -474,13 +504,13 @@ class SAR_Project:
             if query[pos].isspace():
                 pos += 1
                 continue
-            elif query [pos] == '(':
-                #Si nos encontramos un paréntesis, obtenemos la posting list de la subconsulta, 
+            elif query[pos] == '(':
+                # Si nos encontramos un paréntesis, obtenemos la posting list de la subconsulta,
                 # y calculamos el NOT de esa
                 matching_pos = self.get_matching_parenthesis(query, pos)
-                posting_list = self.solve_query(query[pos+1:matching_pos])
+                posting_list = self.solve_query(query[pos + 1:matching_pos])
                 return (self.reverse_posting(posting_list), matching_pos + 1)
-            elif query[pos: pos+4] == 'not ' or query[pos:pos+4] == 'not(':
+            elif query[pos: pos + 4] == 'not ' or query[pos:pos + 4] == 'not(':
                 # Si nos econtramos otra query NOT dentro, calculamos esa recursivamente, y devolvemos su negación
                 (posting_list, pos) = self.solve_reversed_query(query, pos)
                 return (self.reverse_posting(posting_list), pos)
@@ -509,7 +539,7 @@ class SAR_Project:
         return: posting list
 
         """
-        #Si encontramos el separador de campo, especificamos el campo, si no, ponemos article por defecto
+        # Si encontramos el separador de campo, especificamos el campo, si no, ponemos article por defecto
         separator_pos = term.find(':')
         if separator_pos == -1:
             field = 'article'
@@ -528,25 +558,24 @@ class SAR_Project:
             return self.get_positionals(terms, field)
         else:
             # Si no es una búsquesa posicional
-            if self.stemming and field in SAR_Project.normalized_fields:
+            if self.use_stemming and field in SAR_Project.normalized_fields:
                 # Si utilizamos stemming, delegamos
-                return self.get_stemming(term[separator_pos+1:], field)
+                return self.get_stemming(term[separator_pos + 1:], field)
 
-            #Tokenizamos si es necasrio
+            # Tokenizamos si es necasrio
             if field in SAR_Project.normalized_fields:
-                token = self.tokenize(term[separator_pos+1:])[0]
+                token = self.tokenize(term[separator_pos + 1:])[0]
             else:
-                token = term[separator_pos+1:]
+                token = term[separator_pos + 1:]
             if self.positional:
                 # Si es el índice es posicional, tendremos que extraer de cada entrada de la posting list únicamente el id de noticia,
-                # e ignorar las listas de posiciones que acompañan en una tupla al id. 
+                # e ignorar las listas de posiciones que acompañan en una tupla al id.
                 # Ej: posting_list: [(new1, [2,4]), (new7, [0]), (new10,[1,2]), ...]
-                return [x[0] for x in self.index.get(field, {}).get(token, (0,[]))[1]]
+                return [x[0] for x in self.index.get(field, {}).get(token, (0, []))[1]]
             else:
                 # Si el índice no es posicional, bastará con obtener la posting list, que solo consistirá en una lista de id de noticias.
                 # Ej: posting_list: [new1, new7, new10...]
-                return self.index.get(field, {}).get(token, (0,[]))[1]
-
+                return self.index.get(field, {}).get(token, (0, []))[1]
 
     def get_positionals(self, terms, field='article'):
         """
@@ -561,7 +590,7 @@ class SAR_Project:
 
         """
         # Aquí utilizamos una modificación de una operación AND, solo que en lugar de hacerla con solo 2 elementos, se
-        # hace con una cantidad arbitraria, y además de comprobar si están en el mismo documento, se comprueba si su 
+        # hace con una cantidad arbitraria, y además de comprobar si están en el mismo documento, se comprueba si su
         # posición es secuencial
         result = []
         posting_lists = [self.index.get(field, {}).get(term, (0, []))[1] for term in terms]
@@ -573,8 +602,8 @@ class SAR_Project:
             # Mientras no hayamos llegado al final de la posting list de ninguno de los elementos
             same_doc = True
             doc = posting_lists[0][positions[0]]
-            #Comprobamos si estamos en todas las posting list apuntando al mismo documento
-            for j in range(1,n_terms):
+            # Comprobamos si estamos en todas las posting list apuntando al mismo documento
+            for j in range(1, n_terms):
                 if posting_lists[j][positions[j]][0] != doc[0]:
                     same_doc = False
                     break
@@ -588,7 +617,7 @@ class SAR_Project:
                     positions[j] += 1
             else:
                 # Si no es la misma noticia, búscamos el término con la noticia más baja, y la avanzamos a la siguiente
-                min_pos = min([(j, posting_lists[j][positions[j]]) for j in range(n_terms)], key= lambda x: x[1])[0]
+                min_pos = min([(j, posting_lists[j][positions[j]]) for j in range(n_terms)], key=lambda x: x[1])[0]
                 positions[min_pos] += 1
         return result
 
@@ -602,17 +631,17 @@ class SAR_Project:
         return: true si los términos aparecen consecutivamente en el orden de las listas
         """
         n_terms = len(term_positions)
-        positions = [0]*n_terms
+        positions = [0] * n_terms
         while positions[0] < len(term_positions[0]):
             start_pos = term_positions[0][positions[0]]
-            for i in range(1,n_terms):
-                #Para cada término, mientras su posición no sea posterior a la del término posterior, lo avanzamos
-                while positions[i] < len(term_positions[i]) and term_positions[i][positions[i]] < start_pos+i:
+            for i in range(1, n_terms):
+                # Para cada término, mientras su posición no sea posterior a la del término posterior, lo avanzamos
+                while positions[i] < len(term_positions[i]) and term_positions[i][positions[i]] < start_pos + i:
                     positions[i] += 1
                 if positions[i] >= len(term_positions[i]):
-                    #Si alguna lista se sale, no puede estar la secuencia
+                    # Si alguna lista se sale, no puede estar la secuencia
                     return False
-                
+
             # Si las posiciones de cada término son secuenciales, devolvemos true
             if all([term_positions[i][positions[i]] == start_pos + i for i in range(n_terms)]):
                 return True
@@ -634,10 +663,8 @@ class SAR_Project:
         """
 
         stem = self.stemmer.stem(term)
-
-        ####################################################
-        ## COMPLETAR PARA FUNCIONALIDAD EXTRA DE STEMMING ##
-        ####################################################
+        #tomamos el stem del termino y devolvemos su posting list del indice de stems (lista de newId's)
+        return self.sindex[field].get(stem, (0,[]))[1]
 
     def get_permuterm(self, term, field='article'):
         """
@@ -674,11 +701,11 @@ class SAR_Project:
         i = 0
         result = []
         for docid in p:
-            #Añadimos al resultado todos los docuemntos que hay entre cada uno de los que nos han pasado, 
+            # Añadimos al resultado todos los docuemntos que hay entre cada uno de los que nos han pasado,
             # sin incluir esos
             result += range(i, docid)
             i = docid + 1
-        #Añadimos todos los que pueda haber desde el último que se debe excluir hasta el final
+        # Añadimos todos los que pueda haber desde el último que se debe excluir hasta el final
         result += range(i, self.total_news)
         return result
 
@@ -701,7 +728,7 @@ class SAR_Project:
         result = []
         i = 0
         j = 0
-        #Vamos avanzando sobre la lista mientras aún queden en las dos
+        # Vamos avanzando sobre la lista mientras aún queden en las dos
         while i < len(p1) and j < len(p2):
             if p1[i] == p2[j]:
                 # Si la noticia está en las dos, la incuimos en el resultado y pasamos a las siguientes
@@ -733,14 +760,14 @@ class SAR_Project:
         i = 0
         j = 0
         while i < len(p1) and j < len(p2):
-            #Mientreas queden noticias en los dos
+            # Mientreas queden noticias en los dos
             if p1[i] == p2[j]:
-                #Si está en los dos, la incluimos y avanzamos los dos
+                # Si está en los dos, la incluimos y avanzamos los dos
                 result.append(p1[i])
                 i += 1
                 j += 1
             else:
-                # Si solo está en una, la incluimos y avanzamos a la siguiente. 
+                # Si solo está en una, la incluimos y avanzamos a la siguiente.
                 if p1[i] < p2[j]:
                     result.append(p1[i])
                     i += 1
@@ -815,22 +842,24 @@ class SAR_Project:
         """
         result = self.solve_query(query)
         if self.use_ranking:
-            result = self.rank_result(result, query)   
-        
-        multifield_tokenizer = re.compile(r"(?:\w+:)?(?:\w+|(?:\".*?\"))")
+            result = self.rank_result(result, query)
 
-        print('='*40)
+        multifield_tokenizer = re.compile(r"(?:\w+:)?(?:\w+|(?:\".*?\"))")
+        #tokeniza separando por palabras, comillas o paralbras+comillas
+        #ejemplo "fin de semana" AND title:"el país" -> ['"fin de semana"','AND','title:"el país"']
+
+        print('=' * 40)
         print('Query: \'' + query + '\'')
         print('Number of results: %d' % len(result))
         for i in range(len(result)):
-            newid = result[i-1]
+            newid = result[i - 1]
             (docId, pos) = self.news[newid]
             filepath = self.docs[docId]
             with open(filepath) as f:
                 jlist = json.load(f)
                 new = jlist[pos]
 
-            print('#%d' % (i+1))
+            print('#%d' % (i + 1))
             print('Score: 0')
             print(str(newid))
             print("Date: " + new['date'])
@@ -842,71 +871,99 @@ class SAR_Project:
                 normalized_new = {}
                 ocurrences = {}
                 for (key, value) in SAR_Project.fields:
+                    #creamos diccionario noticia[campo]:[tokens]
                     if value:
                         normalized_new[key] = self.tokenize(new[key])
                     else:
                         normalized_new[key] = [new[key]]
                     ocurrences[key] = []
-
                 j = 0
                 while (j < len(tokenized_query)):
                     token = tokenized_query[j]
                     if (token == 'and' or token == 'or' or token == 'not'):
-                        j+=1
+                        j += 1
                         continue
                     separator_pos = token.find(':')
+                    #determinamos multicfield buscando ":"
                     if separator_pos == -1:
-                        field =  'article'
+                        #si no esta ":"  no es multifield
+                        field = 'article'
                     else:
+                        #si esta ":" determinamos el campo y separamos el token x:y -> campo x , token y
                         field = token[:separator_pos]
-                        token = token[separator_pos+1:]
+                        token = token[separator_pos + 1:]
                     if token[0] == '"':
+                        #si token empieza por " (posicional)
                         if field in SAR_Project.normalized_fields:
+                            #si el campo no es fecha dividimos en tokens
                             terms = self.tokenize(token[1:-1])
                         else:
                             terms = token.trim('"').split()
                         for k in range(len(normalized_new[field]) - len(terms) + 1):
                             found = True
                             for h in range(len(terms)):
+                                #buscamos los tokens de la consulta posicional dentro del campo determinado
                                 if normalized_new[field][k + h] != terms[h]:
                                     found = False
                                     break
+                            left_pos = -1
                             if found:
+                                #si se encuentra determinamos posicion del snippet
                                 left_pos = max(0, k - 6)
                                 right_pos = min(len(normalized_new[field]) - 1, k + len(terms) + 5)
+                                break
+                        if left_pos < 0:
+                            #si no encontramos la consulta continuamos sin generar snippet (consulta tipo OR o NOT)
+                            j += 1
+                            continue
                     else:
+                        #si no es posicional
+                        if token not in normalized_new[field]:
+                            if self.use_stemming:
+                                #comprobamos si el token no aparece por que tiene el mismo stem pero es distinto token
+                                stem = self.stemmer.stem(token)
+                                token = next((token for token in normalized_new[field] if token in self.sindex[field][stem][0]), None)
+                                if token is None:
+                                    #si tampoco esta el stem continuamos
+                                    j += 1
+                                    continue
+                            else:
+                                # si no encontramos la consulta y no es stemming continuamos sin generar snippet (consulta tipo OR o NOT)
+                                j += 1
+                                continue
                         pos = normalized_new[field].index(token)
                         left_pos = max(0, pos - 6)
-                        right_pos = min(len(normalized_new[field])-1, pos + 6)
-                        
+                        right_pos = min(len(normalized_new[field]) - 1, pos + 6)
+
                     ocurrences[field].append((left_pos, right_pos))
-                    j+=1
-                
+                    j += 1
+
                 for (field, _) in SAR_Project.fields:
                     field_ocurrences = ocurrences[field]
                     field_ocurrences.sort(key=lambda x: x[0])
 
-                    j=0
+                    j = 0
                     while (j < len(field_ocurrences) - 1):
-                        if field_ocurrences[j][1] >= field_ocurrences[j+1][0]:
-                            field_ocurrences = field_ocurrences[:j] + [(field_ocurrences[j][0],field_ocurrences[j+1][1])] + field_ocurrences[j+2:]
+                        if field_ocurrences[j][1] >= field_ocurrences[j + 1][0]:
+                            field_ocurrences = field_ocurrences[:j] + [
+                                (field_ocurrences[j][0], field_ocurrences[j + 1][1])] + field_ocurrences[j + 2:]
                         else:
-                            j+=1
-                
+                            j += 1
+
                 print("...", end="")
-                for (field,_) in SAR_Project.fields:
+                for (field, _) in SAR_Project.fields:
                     for snippet in ocurrences[field]:
                         for j in range(snippet[0], snippet[1] + 1):
                             print(normalized_new[field][j], end=" ")
                         print("... ", end="")
                 print()
-                    
 
-
-
-            if (i < len(result)-1):
-                print('-'*20)
-        print('='*40)
+            if (i < len(result) - 1):
+                print('-' * 20)
+            if not self.show_all and i == 9:
+                #si no se utiliza -A y se han mostrado 9 paramos de mostrar
+                break
+        print('=' * 40)
 
     def rank_result(self, result, query):
         """
